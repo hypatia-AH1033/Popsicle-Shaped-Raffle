@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>アイス棒くじ引き（リアル残数調整版）</title>
+  <style>
+    :root {
+      --bg-color: #f7f3e9;
+      --card-bg: #ffffff;
+      --wood-color: #e5c383;
+      --wood-dark: #cba258;
+      --gold: #ffd700;
+      --silver: #c0c0c0;
+      --bronze: #cd7f32;
+      --red: #ff4d4d;
+      --miss: #888888;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      background-color: var(--bg-color);
+      color: #333;
+      margin: 0;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 { font-size: 1.5rem; margin-bottom: 10px; color: #5a4632; }
+
+    .container {
+      width: 100%;
+      max-width: 600px;
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    .config-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .input-row {
+      display: flex;
+      flex-direction: column;
+    }
+
+    label { font-size: 0.85rem; font-weight: bold; margin-bottom: 4px; color: #666; }
+    input, select {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+
+    .ranks-grid {
+      border-top: 1px dashed #ccc;
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+
+    .rank-input {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .rank-input label { margin: 0; width: 60px; }
+    .rank-input input { width: 100px; }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      background-color: #5a4632;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:hover { background-color: #3d2f22; }
+    .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+    .btn-shuffle {
+      background-color: #d97706;
+      margin-bottom: 10px;
+    }
+    .btn-shuffle:hover { background-color: #b45309; }
+
+    /* くじ引きプレイエリア */
+    .play-area {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .status-bar {
+      font-weight: bold;
+      margin-bottom: 15px;
+      font-size: 1.1rem;
+      color: #333;
+    }
+
+    /* アイス棒のスタイル */
+    .ice-stick-container {
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 10px 0;
+      perspective: 1000px;
+    }
+
+    .ice-stick {
+      width: 50px;
+      height: 200px;
+      background: linear-gradient(135deg, var(--wood-color) 0%, var(--wood-dark) 100%);
+      border-radius: 25px 25px 10px 10px;
+      box-shadow: 3px 5px 10px rgba(0,0,0,0.2);
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.6s ease-out;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      padding-top: 25px;
+    }
+
+    .ice-stick.pulled {
+      transform: translateY(-30px) rotate(3deg);
+    }
+
+    /* シャッフル中のシェイクアニメーション */
+    .ice-stick.shaking {
+      animation: shake 0.3s ease-in-out;
+    }
+
+    @keyframes shake {
+      0% { transform: rotate(0deg) scale(0.95); }
+      25% { transform: rotate(12deg) scale(0.95); }
+      75% { transform: rotate(-12deg) scale(0.95); }
+      100% { transform: rotate(0deg) scale(1); }
+    }
+
+    /* 先端の当たり印字 */
+    .stick-text {
+      writing-mode: vertical-rl;
+      font-size: 1.2rem;
+      font-weight: bold;
+      letter-spacing: 2px;
+      opacity: 0;
+      transition: opacity 0.4s ease 0.3s;
+    }
+
+    .ice-stick.pulled .stick-text { opacity: 1; }
+
+    /* 等級別テキストカラー */
+    .rank-1 { color: #8a6d00; text-shadow: 0 0 5px var(--gold); }
+    .rank-2 { color: #555555; text-shadow: 0 0 5px var(--silver); }
+    .rank-3 { color: #5c320a; text-shadow: 0 0 5px var(--bronze); }
+    .rank-4 { color: #990000; text-shadow: 0 0 3px var(--red); }
+    .rank-5 { color: #444444; }
+
+    /* アラート・エラー表示 */
+    .error-msg {
+      color: #d9534f;
+      font-size: 0.85rem;
+      margin-top: 5px;
+      font-weight: bold;
+    }
+
+    /* 積み上がった棒の履歴 */
+    .history-container {
+      margin-top: 20px;
+      width: 100%;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+    .history-title { font-size: 0.9rem; font-weight: bold; color: #777; margin-bottom: 8px; }
+    .stick-pile {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .mini-stick {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #e0d0b0;
+      font-weight: bold;
+    }
+    .mini-rank-1 { background: var(--gold); color: #000; }
+    .mini-rank-2 { background: var(--silver); color: #000; }
+    .mini-rank-3 { background: var(--bronze); color: #fff; }
+    .mini-rank-4 { background: var(--red); color: #fff; }
+    .mini-rank-5 { background: #bbb; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <h1>🍦 昭和レトロ アイス棒くじ引き</h1>
+
+  <!-- 設定カード -->
+  <div class="container" id="configCard">
+    <div class="config-group">
+      <div class="input-row">
+        <label for="modeSelect">モード指定</label>
+        <select id="modeSelect" onchange="toggleMode()">
+          <option value="count">本数指定</option>
+          <option value="ratio">確率(%)指定</option>
+        </select>
+      </div>
+      <div class="input-row">
+        <label for="totalPeople">くじを引く人数 (母数)</label>
+        <input type="number" id="totalPeople" value="10" min="1" max="1000" onchange="validateConfig()">
+      </div>
+    </div>
+
+    <div class="ranks-grid">
+      <div class="rank-input">
+        <label style="color:#d4af37">1等 (金)</label>
+        <input type="number" id="r1" class="rank-val" value="1" min="0" oninput="validateConfig()">
+        <span class="unit-label">本</span>
+      </div>
+      <div class="rank-input">
+        <label style="color:#8a8a8a">2等 (銀)</label>
+        <input type="number" id="r2" class="rank-val" value="1" min="0" oninput="validateConfig()">
+        <span class="unit-label">本</span>
+      </div>
+      <div class="rank-input">
+        <label style="color:#a0522d">3等 (銅)</label>
+        <input type="number" id="r3" class="rank-val" value="1" min="0" oninput="validateConfig()">
+        <span class="unit-label">本</span>
+      </div>
+      <div class="rank-input">
+        <label style="color:#cc0000">4等 (赤)</label>
+        <input type="number" id="r4" class="rank-val" value="2" min="0" oninput="validateConfig()">
+        <span class="unit-label">本</span>
+      </div>
+      <div class="rank-input">
+        <label style="color:#555">5等/ハズレ</label>
+        <input type="number" id="r5" class="rank-val" value="0" min="0" readonly style="background:#eee;">
+        <span class="unit-label">本</span>
+      </div>
+    </div>
+
+    <div id="errorMsg" class="error-msg"></div>
+    <button id="startBtn" class="btn" style="margin-top: 15px;" onclick="setupLottery()">くじ箱をセットして開始</button>
+  </div>
+
+  <!-- プレイエリア -->
+  <div class="container play-area" id="playCard" style="display: none;">
+    <div class="status-bar">
+      残りくじ：<span id="remainingCount">0</span> / <span id="initialTotal">0</span> 本
+    </div>
+
+    <div class="ice-stick-container">
+      <div class="ice-stick" id="iceStick" onclick="drawTicket()">
+        <div class="stick-text" id="stickText"></div>
+      </div>
+    </div>
+
+    <button id="shuffleBtn" class="btn btn-shuffle" onclick="shuffleBox()">🔀 残りくじをシャッフルする</button>
+    <button id="drawBtn" class="btn" onclick="drawTicket()">アイスを舐めてくじを引く！</button>
+    <button class="btn" style="margin-top: 10px; background:#888;" onclick="resetConfig()">設定に戻る</button>
+
+    <div class="history-container">
+      <div class="history-title">引いた棒の山 (履歴)</div>
+      <div class="stick-pile" id="stickPile"></div>
+    </div>
+  </div>
+
+  <script>
+    let lotteryBox = [];
+    let initialTotalCount = 0;
+    let isDrawing = false;
+
+    // モード切り替え（本数 vs 割合）
+    function toggleMode() {
+      const mode = document.getElementById('modeSelect').value;
+      const unitLabels = document.querySelectorAll('.unit-label');
+      
+      unitLabels.forEach((label, idx) => {
+        if(idx < 4) {
+          label.textContent = mode === 'count' ? '本' : '%';
+        }
+      });
+      validateConfig();
+    }
+
+    // 入力検証 & 5等（残り）自動算出
+    function validateConfig() {
+      const mode = document.getElementById('modeSelect').value;
+      const total = parseInt(document.getElementById('totalPeople').value) || 0;
+      const r1 = parseFloat(document.getElementById('r1').value) || 0;
+      const r2 = parseFloat(document.getElementById('r2').value) || 0;
+      const r3 = parseFloat(document.getElementById('r3').value) || 0;
+      const r4 = parseFloat(document.getElementById('r4').value) || 0;
+
+      const errorMsg = document.getElementById('errorMsg');
+      const startBtn = document.getElementById('startBtn');
+      const r5Input = document.getElementById('r5');
+
+      let sum = r1 + r2 + r3 + r4;
+
+      if (mode === 'count') {
+        if (sum > total) {
+          errorMsg.textContent = `1〜4等の合計本数(${sum}本)が、全体人数(${total}人)を超えています！`;
+          startBtn.disabled = true;
+          r5Input.value = 0;
+          return;
+        }
+        r5Input.value = total - sum;
+      } else { // ratio
+        if (sum > 100) {
+          errorMsg.textContent = `1〜4等の確率合計(${sum}%)が100%を超えています！`;
+          startBtn.disabled = true;
+          r5Input.value = 0;
+          return;
+        }
+        r5Input.value = (100 - sum).toFixed(1);
+      }
+
+      errorMsg.textContent = '';
+      startBtn.disabled = false;
+    }
+
+    // くじ箱の構築
+    function setupLottery() {
+      const mode = document.getElementById('modeSelect').value;
+      const total = parseInt(document.getElementById('totalPeople').value);
+      const r1 = parseFloat(document.getElementById('r1').value) || 0;
+      const r2 = parseFloat(document.getElementById('r2').value) || 0;
+      const r3 = parseFloat(document.getElementById('r3').value) || 0;
+      const r4 = parseFloat(document.getElementById('r4').value) || 0;
+
+      lotteryBox = [];
+
+      if (mode === 'count') {
+        addTickets(1, r1);
+        addTickets(2, r2);
+        addTickets(3, r3);
+        addTickets(4, r4);
+        addTickets(5, total - (r1 + r2 + r3 + r4));
+      } else { // ratio% から本数に展開
+        let count1 = Math.round(total * (r1 / 100));
+        let count2 = Math.round(total * (r2 / 100));
+        let count3 = Math.round(total * (r3 / 100));
+        let count4 = Math.round(total * (r4 / 100));
+        let count5 = total - (count1 + count2 + count3 + count4);
+
+        if(count5 < 0) count5 = 0;
+
+        addTickets(1, count1);
+        addTickets(2, count2);
+        addTickets(3, count3);
+        addTickets(4, count4);
+        addTickets(5, count5);
+      }
+
+      // 初回のシャッフル
+      shuffleArray(lotteryBox);
+
+      initialTotalCount = lotteryBox.length;
+      document.getElementById('initialTotal').textContent = initialTotalCount;
+      document.getElementById('remainingCount').textContent = lotteryBox.length;
+      document.getElementById('stickPile').innerHTML = '';
+
+      // 画面の切り替え
+      document.getElementById('configCard').style.display = 'none';
+      document.getElementById('playCard').style.display = 'block';
+      resetStickUI();
+    }
+
+    function addTickets(rank, count) {
+      for (let i = 0; i < count; i++) {
+        lotteryBox.push(rank);
+      }
+    }
+
+    // 配列のシャッフル（フィッシャー–イェーツ）
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    // 手動シャッフル機能
+    function shuffleBox() {
+      if (isDrawing || lotteryBox.length <= 1) return;
+
+      shuffleArray(lotteryBox);
+
+      // 棒が横に揺れるシェイクアニメーション
+      const stick = document.getElementById('iceStick');
+      stick.classList.remove('shaking');
+      void stick.offsetWidth; // リフロー発生でアニメーションをリセット
+      stick.classList.add('shaking');
+
+      // ポップアップ（アラート）
+      setTimeout(() => {
+        alert(`箱をガシャガシャ！残り ${lotteryBox.length} 本をシャッフルしました！`);
+      }, 300);
+    }
+
+    // くじを引く処理
+    function drawTicket() {
+      if (isDrawing || lotteryBox.length === 0) return;
+
+      isDrawing = true;
+      document.getElementById('drawBtn').disabled = true;
+      document.getElementById('shuffleBtn').disabled = true;
+
+      // ランダムに1つ取り出して削除（母数を減らす）
+      const resultRank = lotteryBox.pop();
+      document.getElementById('remainingCount').textContent = lotteryBox.length;
+
+      // UI演出
+      const stick = document.getElementById('iceStick');
+      const stickText = document.getElementById('stickText');
+
+      const rankData = {
+        1: { text: "1等 大当たり!", class: "rank-1" },
+        2: { text: "2等 アタリ", class: "rank-2" },
+        3: { text: "3等 アタリ", class: "rank-3" },
+        4: { text: "4等 小タリ", class: "rank-4" },
+        5: { text: "ハズレ", class: "rank-5" }
+      };
+
+      stickText.textContent = rankData[resultRank].text;
+      stickText.className = `stick-text ${rankData[resultRank].class}`;
+      stick.classList.add('pulled');
+
+      // 履歴に追加
+      setTimeout(() => {
+        addHistory(resultRank, rankData[resultRank].text);
+      }, 500);
+
+      // 次の準備
+      setTimeout(() => {
+        if (lotteryBox.length > 0) {
+          document.getElementById('drawBtn').disabled = false;
+          document.getElementById('shuffleBtn').disabled = false;
+          document.getElementById('drawBtn').textContent = "次のくじを引く";
+        } else {
+          document.getElementById('drawBtn').textContent = "完売（くじ終了）";
+          document.getElementById('shuffleBtn').disabled = true;
+        }
+        isDrawing = false;
+      }, 1000);
+    }
+
+    // スティックのリセットアニメーション
+    function resetStickUI() {
+      const stick = document.getElementById('iceStick');
+      stick.classList.remove('pulled', 'shaking');
+      document.getElementById('drawBtn').disabled = false;
+      document.getElementById('shuffleBtn').disabled = false;
+      document.getElementById('drawBtn').textContent = "アイスを舐めてくじを引く！";
+    }
+
+    function addHistory(rank, text) {
+      const pile = document.getElementById('stickPile');
+      const item = document.createElement('div');
+      item.className = `mini-stick mini-rank-${rank}`;
+      item.textContent = text;
+      pile.appendChild(item);
+      pile.scrollTop = pile.scrollHeight;
+    }
+
+    function resetConfig() {
+      document.getElementById('configCard').style.display = 'block';
+      document.getElementById('playCard').style.display = 'none';
+      resetStickUI();
+    }
+
+    // 初期化
+    validateConfig();
+  </script>
+</body>
+</html>
